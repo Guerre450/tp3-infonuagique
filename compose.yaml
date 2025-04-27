@@ -184,8 +184,8 @@ services:
     # --------- Points d'entrées ----------------
       #Redirects web to secure
       #Redirige les entrypoints web à websecure
-      # - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
-      # - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
        # Traefik will listen to incoming request on the port 80 (HTTP)
        # Traefik va écouter les requêtes HTTP
       - --entryPoints.web.address=:80
