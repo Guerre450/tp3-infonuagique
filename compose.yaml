@@ -1,0 +1,262 @@
+services:
+  portainer:
+    # Portainer official image (ce=community edition, alpine=light) 
+    # Image de portainer officielle (ce=community edition, alpine=légère) 
+    image: portainer/portainer-ce:alpine
+    # Container name
+    # Nom donné au conteneur 
+    container_name: portainer
+    # The container will restart in case it crashes
+    # Dans le cas où le conteneur s'arrête/crash, il est automatiquement relancé 
+    restart: unless-stopped
+    # Docker network in which the container will execute itself
+    # Réseau docker dans lequel le conteneur va s'exécuter
+    networks: 
+        - cloud
+    #Volumes used by portainer for storage
+    #Volumes utilisé par portainer pour le stockage
+    volumes:
+    #So portainer is able to listen to the docker events
+    # Pour que portainer écoute au évenements dockers
+      - /var/run/docker.sock:/var/run/docker.sock
+    # the /data persistant volume
+    # le volume persistant /data de portainer
+      - portainer_data:/data
+    labels:
+        #Enables traefik expose.
+        #Active l'exposition de ce service par traefik
+      - "traefik.enable=true"
+        #Matches requests host set to domain.
+        #Lit les requêtes correspondant à ce container
+      - "traefik.http.routers.portainer.rule=Host(`portainer.${MY_DOMAIN}`)"
+        #Sets the entry point to use, web:80 or websecure :443
+        #Établie le point d"entrée pour ce service, soit web(80) ou websecure(443)
+      - "traefik.http.routers.portainer.entryPoints=${ENTRYPOINT}"
+        #Registers a port. Useful when the container exposes multiples ports.
+        #Enregistre un port, utile quand le conteneur expose plusieurs ports.
+      - "traefik.http.services.frontend.loadbalancer.server.port=9000"
+        #You must attach a TCP service per TCP router., Services are the target for the router.
+        #Vous devez attacher un service TCP par routeur, les services soont des cibles pour le routeur.
+      - "traefik.http.routers.frontend.service=frontend"
+  jellyMF:
+    #jellyfin latest image
+    #Image jellyfin latest
+    image: jellyfin/jellyfin:latest
+    # Container name
+    # Nom du container
+    container_name: jellyfin
+    # The container will restart in case it crashes
+    # Dans le cas où le conteneur s'arrête/crash, il est automatiquement relancé 
+    restart: unless-stopped
+    # Docker network in which the container will execute itself
+    # Réseau docker dans lequel le conteneur va s'exécuter
+    networks:
+      - cloud
+    #Environment variable used by jellyfin
+    #Variables d'environment utilisé par jellyfin
+    environment:
+      - TZ=America/Montreal
+    #Volumes used by jellyfin for storage
+    #Volumes utilisé par jellyfin pour le stockage
+    volumes:
+      - jellyfin_data:/config
+      - /mnt/media/Movies:/movies
+      - /mnt/media/TV:/tv
+    
+    labels:
+        #Enables traefik expose.
+        #Active l'exposition de ce service par traefik
+      - "traefik.enable=true"
+        #Matches requests host set to domain.
+        #:it les requêtes correspondant à ce container
+      - "traefik.http.routers.jellyfin.rule=Host(`jellyfin.${MY_DOMAIN}`)"
+        #Sets the entry point to use, web:80 or websecure :443
+        #Établie le point d"entrée pour ce service, soit web(80) ou websecure(443)
+      - "traefik.http.routers.jellyfin.entryPoints=${ENTRYPOINT}"
+  nextcloud:
+    #Nextcloud linuxserver.io image
+    #Image nextcloud linuxserver.io
+    image: lscr.io/linuxserver/nextcloud:latest
+    #Container name
+    #Nom du container
+    container_name: nextcloud
+    # Docker network in which the container will execute itself
+    # Réseau docker dans lequel le conteneur va s'exécuter
+    networks:
+      - cloud
+    #Environment variables used by nextcloud
+    #Variables d'environnement utilisé par nextcloud
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    #Volumes used by nextcloud for storage
+    #Volumes utilisé par nextcloud pour le stockage
+    volumes:
+      - /nextcloud/config:/config
+      - /nextcloud/data:/data
+    # The container will restart in case it crashes
+    # Dans le cas où le conteneur s'arrête/crash, il est automatiquement relancé 
+    restart: unless-stopped
+    labels:
+        #Enables traefik expose.
+        #Active l'exposition de ce service par traefik
+      - "traefik.enable=true"
+        #Matches requests host set to domain.
+        #Lit les requêtes correspondant à ce container
+      - "traefik.http.routers.nextcloud.rule=Host(`nextcloud.${MY_DOMAIN}`)"
+        #Sets the entry point to use, web:80 or websecure :443
+        #Établie le point d"entrée pour ce service, soit web(80) ou websecure(443)
+      - "traefik.http.routers.nextcloud.entryPoints=${ENTRYPOINT}"
+
+  reverse-proxy:
+    # The official v3 Traefik docker image
+    #L'image officiel v3 Traefik
+    image: traefik:v3.3
+    #Commands passed to the container
+    #Commandes passé à le conteneur
+    # Docker network in which the container will execute itself
+    # Réseau docker dans lequel le conteneur va s'exécuter
+    networks:
+      - cloud
+    command:
+    # ------- DEBUGGING AND OPTIONS --------
+    # ------- DEBUGGING ET OPTIONS ---------
+    # reference : https://doc.traefik.io/traefik/user-guides/docker-compose/basic-example/
+      #logs debug
+      #logger les informations
+      - "--log.level=DEBUG"
+      #provides acces to the web UI
+      #permet l'acces au UI de traefik
+      - "--api.insecure=true"
+      # Enabling Docker provider
+      # Active le provider Docker
+      - "--providers.docker=true"
+      # Do not expose containers unless explicitly told so
+      # N'expose pas les conteneurs sans mentions
+      #-"--providers.docker.exposedByDefault=false"
+
+    # ------- DNS CHALLENGE --------
+    # ------- CHALLENGE DNS --------
+    # acme reference : https://doc.traefik.io/traefik/reference/install-configuration/tls/certificate-resolvers/acme/
+        # Enable a dns challenge named "letsencrypt"
+        # Active un challenge dns appelé «letsencrypt»
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge=true"
+        # Tell which provider to use, supported : https://go-acme.github.io/lego/dns/
+        # Dit qu'elle provider utiliser, liste de supports : https://go-acme.github.io/lego/dns/
+        # duckdns : https://go-acme.github.io/lego/dns/duckdns/index.html
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge.provider=duckdns"
+        # The email to provide to Let's Encrypt
+        # Le courriel qu'on accorde à «letsencrypt»
+      - "--certificatesresolvers.letsencrypt.acme.email=mail@mail.com"
+      #Disables the challenge TXT record propagation checks, before notifying ACME that the DNS challenge is ready. Please note that disabling checks can prevent the challenge from succeeding.
+      #Désactive les vérification de propagation du challenge du TXT , Avant the signaler ACME que le DNS challenge est prêt. SVP noté que désactivé les vérifications peut empêcher le challenge de réussir.
+      
+      #old syntax/vielle syntax : --certificatesresolvers.<name>.acme.dnschallenge.disablepropagationcheck
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge.propagation.disableChecks=true"
+      #DNS servers to resolve the FQDN authority.
+      #servers DNS qui résout le FQDN.
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge.resolvers=1.1.1.1:53,8.8.8.8:53"
+        # Tell to store the certificate on a path under our volume
+        # Indique de stocker le certificat sous un path dans notre volume
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+    #----------------Certificate Resolvers -----------------------
+    #----------------Resolvers de Certificat -----------------------
+      #reference : https://doc.traefik.io/traefik/reference/routing-configuration/other-providers/docker/
+      #Activates tls
+      #Active tls
+      - "--entrypoints.websecure.http.tls=true"
+      
+      #Specify certResolver : letsencrypt is the service we use in this context
+      #Spécifie le certResolver : letsencrypt est le sevice qu'on utilise
+      # https://doc.traefik.io/traefik/reference/install-configuration/tls/certificate-resolvers/overview/
+      - "--entrypoints.websecure.http.tls.certResolver=letsencrypt"
+      
+      #The certificate resolver derives this router domain name from the main option of tls.domains.
+      #Le resolver de certificat dérive le nom de domaine de l'option principal de tls.domain
+      - "--entrypoints.websecure.http.tls.domains[0].main=${MY_DOMAIN}"
+      #Set SANs (alternative domains) for each main domain.
+      #Établie des SANs (alternative domains) pour chaque domaine principal
+      - "--entrypoints.websecure.http.tls.domains[0].sans=*.${MY_DOMAIN}"
+
+
+    # --------- ENTRYPOINTS ----------------
+    # --------- Points d'entrées ----------------
+      #Redirects web to secure
+      #Redirige les entrypoints web à websecure
+      # - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      # - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+       # Traefik will listen to incoming request on the port 80 (HTTP)
+       # Traefik va écouter les requêtes HTTP
+      - --entryPoints.web.address=:80
+       # Traefik will listen to incoming request on the port 443 (HTTPS)
+       # Traefik va écouter les requêtes HTTPs
+      - "--entryPoints.websecure.address=:443"
+    #Ports Mapping of http and https
+    #Mappage de ports http et https
+    ports:
+      - "80:80"
+      - "443:443"
+      # The Web UI (enabled by --api.insecure=true)
+      # Port du web UI (activé par l'option --api.insecure=true)
+      - "8080:8080"
+    labels:
+      #Enables traefik expose.
+      #Active l"exposition de ce service par portainer
+      - "traefik.enable=true"
+      #Matches requests host set to domain.
+      #Lit les requêtes correspondant à ce container
+      - "traefik.http.routers.api.rule=Host(`${MY_DOMAIN}`)"
+      #Sets the entry point to use, web:80 or websecure :443
+      #Établie le point d"entrée pour ce service, soit web(80) ou websecure(443)
+      - "traefik.http.routers.api.entryPoints=websecure"
+      #Service Load Balancer # ref : https://doc.traefik.io/traefik/reference/routing-configuration/http/load-balancing/service/
+      #Le service Load Balancer # ref : https://doc.traefik.io/traefik/reference/routing-configuration/http/load-balancing/service/
+      - "traefik.http.routers.api.service=api@internal"
+    volumes:
+      # So that Traefik can listen to the Docker events
+      # Pour que Traefik écoute au évenements dockers
+      - /var/run/docker.sock:/var/run/docker.sock
+        # Create a letsencrypt dir within the folder where the docker-compose file is
+        # Crée un dossier letsencrypt dans le répertoire où le docker compose est
+      - "./letsencrypt:/letsencrypt"
+    #Environment variables used by traefik
+    #Variables d'environnment utilisés par traefik
+    environment:
+      - DUCKDNS_TOKEN=${DUCKDNS_TOKEN}
+  puff_puff_push:
+    image : cedric450/puff_puff_push:v1 #web game made by typimals / jeu sur navigateur par typimals
+    # ports:
+    #   - 8060:8060
+    # Docker network in which the container will execute itself
+    # Réseau docker dans lequel le conteneur va s'exécuter
+    networks:
+      - cloud
+    labels:
+        #Enables traefik expose.
+        #Active l"exposition de ce service par traefik
+      - "traefik.enable=true"
+        #Matches requests host set to domain.
+        #Lit les requêtes correspondant à ce container
+      - "traefik.http.routers.puff_puff_push.rule=Host(`puff_puff_push.${MY_DOMAIN}`)"
+        #Sets the entry point to use, web:80 or websecure :443
+        #Établie le point d"entrée pour ce service, soit web(80) ou websecure(443)
+      - "traefik.http.routers.puff_puff_push.entryPoints=${ENTRYPOINT}"
+        #Redirects https requests to http
+        #Redirige les requêtes https vers http
+        #Reference : https://stackoverflow.com/questions/70584646/traefik-how-do-i-redirect-https-to-http-with-docker
+      - "traefik.http.middlewares.puff_puff_push-redirect.redirectscheme.scheme=http"
+      - "traefik.http.middlewares.puff_puff_push-redirect.redirectscheme.permanent=true"
+
+
+
+# Defines container volumes 
+# Définition des volumes des conteneurs 
+volumes:
+    portainer_data:
+    jellyfin_data:
+# Creation of the network named cloud (where the containers will be launched)
+# Création du réseau cloud (où les conteneurs vont être lancés)
+networks:
+    cloud:
+        driver: bridge
